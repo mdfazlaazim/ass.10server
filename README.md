@@ -8,7 +8,7 @@ Provides REST API endpoints for authentication, lesson management, favorites, co
 
 ## Live URL
 
-Deploy to Render/Railway/Vercel (server) — update after deployment.
+Deploy to Render/Railway/Vercel (server) — update after deployment....
 
 ## Key Features
 
