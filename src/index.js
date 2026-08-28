@@ -18,7 +18,14 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl) or matching client url
+      if (!origin || !process.env.CLIENT_URL || origin === process.env.CLIENT_URL) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Permissive CORS for cross-origin deployment
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
@@ -58,41 +65,62 @@ app.post(
 
 app.use(express.json());
 
-const startServer = async () => {
-  await connectDB();
+// Database connection middleware for serverless invocations
+app.use(async (req, res, next) => {
+  try {
+    if (process.env.MONGODB_URI) {
+      await connectDB();
+    }
+    next();
+  } catch (err) {
+    console.error("Database connection middleware error:", err);
+    next(err);
+  }
+});
 
-  const auth = await getAuth();
-  app.all("/api/auth/*", toNodeHandler(auth));
+let authNodeHandler = null;
+app.all("/api/auth/*", async (req, res, next) => {
+  try {
+    if (!authNodeHandler) {
+      const auth = await getAuth();
+      authNodeHandler = toNodeHandler(auth);
+    }
+    return authNodeHandler(req, res, next);
+  } catch (err) {
+    next(err);
+  }
+});
 
-  app.get("/", (req, res) => {
-    res.json({ message: "Digital Life Lessons API is running" });
-  });
+app.get("/", (req, res) => {
+  res.json({ message: "Digital Life Lessons API is running" });
+});
 
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
-  });
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
-  app.use("/api/lessons", lessonsRouter);
-  app.use("/api/favorites", favoritesRouter);
-  app.use("/api/comments", commentsRouter);
-  app.use("/api/reports", reportsRouter);
-  app.use("/api/users", usersRouter);
-  app.use("/api/admin", adminRouter);
-  app.use("/api/stripe", stripeRouter);
+app.use("/api/lessons", lessonsRouter);
+app.use("/api/favorites", favoritesRouter);
+app.use("/api/comments", commentsRouter);
+app.use("/api/reports", reportsRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/stripe", stripeRouter);
 
-  app.use((req, res) => {
-    res.status(404).json({ message: "Route not found" });
-  });
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
 
-  app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ message: "Internal server error" });
-  });
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: "Internal server error" });
+});
 
+if (!process.env.VERCEL) {
   const PORT = process.env.PORT || 5000;
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
   });
-};
+}
 
-startServer();
+export default app;

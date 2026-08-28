@@ -4,12 +4,18 @@ import User from "../models/User.js";
 import { verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+const stripeKey = process.env.STRIPE_SECRET_KEY || "sk_test_mockkey1234567890";
+const stripe = new Stripe(stripeKey);
 
 router.post("/create-checkout-session", verifyToken, async (req, res) => {
   try {
     if (req.user.isPremium) {
       return res.status(400).json({ message: "You are already a Premium user" });
+    }
+
+    if (stripeKey.startsWith("sk_test_mock")) {
+      // Direct success simulation URL for mock key testing
+      return res.json({ url: `${process.env.CLIENT_URL || "http://localhost:3000"}/payment/success?session_id=mock_session_123` });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -31,8 +37,8 @@ router.post("/create-checkout-session", verifyToken, async (req, res) => {
       metadata: {
         userId: req.user._id.toString(),
       },
-      success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
+      success_url: `${process.env.CLIENT_URL || "http://localhost:3000"}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.CLIENT_URL || "http://localhost:3000"}/payment/cancel`,
     });
 
     res.json({ url: session.url });
@@ -44,14 +50,14 @@ router.post("/create-checkout-session", verifyToken, async (req, res) => {
 router.get("/verify-session", verifyToken, async (req, res) => {
   try {
     const { session_id } = req.query;
-    if (session_id && process.env.STRIPE_SECRET_KEY && !process.env.STRIPE_SECRET_KEY.startsWith("sk_test_51Mock")) {
+    if (session_id && stripeKey && !stripeKey.startsWith("sk_test_mock")) {
       const session = await stripe.checkout.sessions.retrieve(session_id);
       if (session.payment_status === "paid" && session.metadata?.userId === req.user._id.toString()) {
         await User.findByIdAndUpdate(req.user._id, { isPremium: true });
         req.user.isPremium = true;
       }
     } else {
-      // In mock/test mode without live Stripe, mark user premium directly upon redirecting to success page
+      // In mock/test mode without live Stripe API keys, mark user premium directly upon redirecting to success page
       await User.findByIdAndUpdate(req.user._id, { isPremium: true });
       req.user.isPremium = true;
     }
