@@ -15,7 +15,14 @@ export const getAuth = async () => {
   const client = await mongoClientPromise;
   const db = client.db();
 
-  const trustedOrigins = [process.env.CLIENT_URL].filter(Boolean);
+  const trustedOrigins = Array.from(
+    new Set([
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "http://localhost:5000",
+      process.env.CLIENT_URL,
+    ].filter(Boolean))
+  );
 
   authInstance = betterAuth({
     database: mongodbAdapter(db),
