@@ -41,6 +41,26 @@ router.put("/profile", verifyToken, async (req, res) => {
     if (name) req.user.name = name;
     if (photoURL !== undefined) req.user.photoURL = photoURL;
     await req.user.save();
+
+    if (req.session?.user?.id) {
+      try {
+        const { MongoClient } = await import("mongodb");
+        const client = new MongoClient(process.env.MONGODB_URI);
+        await client.connect();
+        const db = client.db();
+        const updateDoc = {};
+        if (name) updateDoc.name = name;
+        if (photoURL !== undefined) updateDoc.image = photoURL;
+        await db.collection("user").updateOne(
+          { id: req.session.user.id },
+          { $set: updateDoc }
+        );
+        await client.close();
+      } catch (authErr) {
+        console.error("Error syncing better-auth user collection:", authErr);
+      }
+    }
+
     res.json(req.user);
   } catch (error) {
     res.status(500).json({ message: error.message });

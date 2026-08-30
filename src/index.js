@@ -16,15 +16,16 @@ import stripeRouter from "./routes/stripe.js";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl) or matching client url
-      if (!origin || !process.env.CLIENT_URL || origin === process.env.CLIENT_URL) {
+      if (!origin) {
         callback(null, true);
-      } else {
-        callback(null, true); // Permissive CORS for cross-origin deployment
+        return;
       }
+      callback(null, origin);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],

@@ -19,8 +19,10 @@ export const syncUserProfile = async (sessionUser) => {
       role: sessionUser.role || "user",
     });
   } else {
-    user.name = sessionUser.name || user.name;
-    user.photoURL = sessionUser.image || sessionUser.photoURL || user.photoURL;
+    if (!user.name && sessionUser.name) user.name = sessionUser.name;
+    if (!user.photoURL && (sessionUser.image || sessionUser.photoURL)) {
+      user.photoURL = sessionUser.image || sessionUser.photoURL;
+    }
     user.authId = sessionUser.id;
     await user.save();
   }
